@@ -1,0 +1,9 @@
+{
+    "name": "krsync",
+    "private": true,
+    "scripts": { "test": "node tests/run.js" },
+	"devDependencies": {
+		"fengari": "0.1.5",
+		"luaparse": "0.3.1"
+	}
+}
