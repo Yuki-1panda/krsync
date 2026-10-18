@@ -1,0 +1,13 @@
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const root = path.join(__dirname, '..');
+const file = path.join(root, 'plugin/krsync.koplugin/main.lua');
+const version = process.argv[2];
+if (!/^\d+\.\d+\.\d+$/.test(version || '')) throw Error('Usage: node scripts/prepare-release.js 1.1.1');
+const source = fs.readFileSync(file, 'utf8').replace(/^local PLUGIN_VERSION = "[\d.]+"/, `local PLUGIN_VERSION = "${version}"`).replace(/\r\n/g,'\n');
+require('luaparse').parse(source, {luaVersion:'5.1'});
+fs.writeFileSync(file, source);
+const bytes = Buffer.from(source);
+fs.writeFileSync(path.join(root,'ota.txt'), `${version}\n${crypto.createHash('sha256').update(bytes).digest('hex')}\n${bytes.length}\n`);
+console.log(`Prepared ${version}, ${bytes.length} bytes`);
