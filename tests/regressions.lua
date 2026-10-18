@@ -76,6 +76,33 @@ KRSync:uploadCovers(many)
 check(#calls==24 and KRSync.cover_report[1].remaining==3 and KRSync.cover_report[2].remaining==3, "12 cover limit per destination")
 io.open = originalOpen
 
+-- Separate configuration dialogs must never overwrite the other destination.
+setup(true,true)
+KRSync.settings.device_name = "My Kindle"
+KRSync.settings.cover_sent.old = true
+KRSync.settings.cover_sent2.old = true
+local config, inputs
+package.loaded["ui/widget/multiinputdialog"].new=function(_,t)
+    config=t
+    t.onShowKeyboard=function() end
+    t.getFields=function() return inputs end
+    return t
+end
+package.loaded["ui/uimanager"].close=function() end
+KRSync:showConfig(true)
+check(#config.fields==2 and config.fields[1].text=="https://secondary.example", "backup dialog has two fields")
+inputs={"https://new-secondary.example","new-token"}
+config.buttons[1][2].callback()
+check(KRSync.settings.server_url=="https://primary.example" and KRSync.settings.token=="one", "backup save preserves primary")
+check(KRSync.settings.server_url2==inputs[1] and KRSync.settings.token2==inputs[2], "backup fields save correctly")
+check(KRSync.settings.cover_sent.old and not KRSync.settings.cover_sent2.old, "only changed target cover history reset")
+KRSync:showConfig(false)
+check(#config.fields==2 and config.fields[1].text=="https://primary.example", "primary dialog has two fields")
+inputs={"","one"}
+config.buttons[1][2].callback()
+check(KRSync.settings.server_url=="" and KRSync.settings.server_url2=="https://new-secondary.example", "primary disable preserves backup")
+check(KRSync.settings.device_name=="My Kindle", "config save preserves device name")
+
 -- OTA: simulated filesystem; no plugin on disk is overwritten.
 setup(true,false)
 local vfs = {}
