@@ -1,4 +1,4 @@
-local PLUGIN_VERSION = "1.1.0"
+local PLUGIN_VERSION = "1.1.1"
 --[[--
 Readbox Sync (krsync.koplugin)
 
@@ -313,8 +313,20 @@ function KRSync:buildMenu()
             callback = function() self:sync(true) end,
         },
         {
-            text = "配置（服务器 / 同步口令 / 设备名）",
-            callback = function() self:showConfig() end,
+            text = "版本 " .. PLUGIN_VERSION .. " · 检查插件更新",
+            callback = function() self:checkPluginUpdate() end,
+        },
+        {
+            text = "主服务器配置（网页版）",
+            callback = function() self:showConfig(false) end,
+        },
+        {
+            text = "备用服务器配置（小程序）",
+            callback = function() self:showConfig(true) end,
+        },
+        {
+            text = "设备名",
+            callback = function() self:showDeviceName() end,
         },
         {
             text = "合上书本后自动同步",
@@ -353,10 +365,6 @@ function KRSync:buildMenu()
                     end,
                 })
             end,
-        },
-        {
-            text = "检查插件更新（当前 " .. PLUGIN_VERSION .. "）",
-            callback = function() self:checkPluginUpdate() end,
         },
         {
             text = "书籍扫描目录（可选）",
@@ -398,37 +406,24 @@ function KRSync:buildMenu()
     }
 end
 
-function KRSync:showConfig()
+function KRSync:showConfig(second)
     local s = self:loadSettings()
+    local urlKey = second and "server_url2" or "server_url"
+    local tokenKey = second and "token2" or "token"
+    local sentKey = second and "cover_sent2" or "cover_sent"
     local dialog
     dialog = MultiInputDialog:new{
-        title = "Readbox 同步 - 配置",
+        title = second and "备用服务器配置（小程序）" or "主服务器配置（网页版）",
         fields = {
             {
-                description = "你部署后台后拿到的网址（哪种部署方式都一样）",
-                hint = "服务器网址",
-                text = s.server_url,
+                description = "服务器根网址；清空可停用这一端",
+                hint = second and "备用服务器网址" or "主服务器网址",
+                text = s[urlKey] or "",
             },
             {
-                description = "网页「我的 → 账号 → 同步口令」里显示的那串（自己编的，和登录账号无关）",
-                hint = "同步口令",
-                text = s.token,
-                text_type = "password",
-            },
-            {
-                description = "给这台 Kindle 起个名字，三台设备不要重名，例如 卧室KPW5",
-                hint = "设备名",
-                text = (s.device_name ~= "" and s.device_name or (Device.model or "Kindle")),
-            },
-            {
-                description = "可选。填了就每次同步同时推第二处（如主处推网页版、备用推小程序）",
-                hint = "备用服务器网址（可选）",
-                text = s.server_url2 or "",
-            },
-            {
-                description = "备用服务器的同步口令（填了网址就要填这个）",
-                hint = "备用同步口令（可选）",
-                text = s.token2 or "",
+                description = second and "填写小程序提供的同步口令" or "填写网页版提供的同步口令",
+                hint = second and "备用同步口令" or "主同步口令",
+                text = s[tokenKey] or "",
                 text_type = "password",
             },
         },
@@ -440,20 +435,35 @@ function KRSync:showConfig()
                 { text = "保存", callback = function()
                     local fields = dialog:getFields()
                     UIManager:close(dialog)
-                    if trim(self.settings.server_url):gsub("/+$", "") ~= trim(fields[1]):gsub("/+$", "")
-                        or trim(self.settings.token) ~= trim(fields[2]) then self.settings.cover_sent = {} end
-                    if trim(self.settings.server_url2):gsub("/+$", "") ~= trim(fields[4]):gsub("/+$", "")
-                        or trim(self.settings.token2) ~= trim(fields[5]) then self.settings.cover_sent2 = {} end
-                    self.settings.server_url = trim(fields[1])
-                    self.settings.token = trim(fields[2])
-                    self.settings.device_name = trim(fields[3])
-                    self.settings.server_url2 = trim(fields[4])
-                    self.settings.token2 = trim(fields[5])
+                    if trim(s[urlKey]):gsub("/+$", "") ~= trim(fields[1]):gsub("/+$", "")
+                        or trim(s[tokenKey]) ~= trim(fields[2]) then s[sentKey] = {} end
+                    s[urlKey] = trim(fields[1])
+                    s[tokenKey] = trim(fields[2])
                     self:saveSettings()
                     UIManager:show(InfoMessage:new{ text = "已保存" })
                 end },
             },
         },
+    }
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
+function KRSync:showDeviceName()
+    local InputDialog = require("ui/widget/inputdialog")
+    local dialog
+    dialog = InputDialog:new{
+        title = "设备名（每台设备请用不同名字）",
+        input = self:deviceName(),
+        buttons = {{
+            { text = "取消", callback = function() UIManager:close(dialog) end },
+            { text = "保存", callback = function()
+                self.settings.device_name = trim(dialog:getInputText())
+                self:saveSettings()
+                UIManager:close(dialog)
+                UIManager:show(InfoMessage:new{ text = "设备名已保存" })
+            end },
+        }},
     }
     UIManager:show(dialog)
     dialog:onShowKeyboard()
