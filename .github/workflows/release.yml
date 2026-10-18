@@ -1,0 +1,37 @@
+name: Test and release plugin
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts
+      - run: npm test
+      - name: Validate release manifest
+        id: version
+        run: |
+          VERSION=$(head -n 1 ota.txt)
+          node scripts/prepare-release.js "$VERSION"
+          git diff --exit-code -- ota.txt plugin/krsync.koplugin/main.lua
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Package and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo 'Version already released; bump version for new changes.'
+            exit 0
+          fi
+          cd plugin
+          zip -r ../krsync.koplugin.zip krsync.koplugin -x '*.bak' '*.ota-new'
+          cd ..
+          gh release create "$TAG" krsync.koplugin.zip --target "$GITHUB_SHA" --title "Readbox Sync $TAG" --notes 'Dual destination sync, cover repair and plugin OTA. See README for installation.'
